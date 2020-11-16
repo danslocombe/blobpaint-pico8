@@ -3,6 +3,11 @@ version 29
 __lua__
 
 field = {}
+
+red = {}
+green = {}
+blue = {}
+
 t = 0
 
 function sqr(x)
@@ -10,19 +15,56 @@ function sqr(x)
 end
 
 function _init()
-  for y = 0,128 do
-    field[y] = {}
-    for x = 0,128 do
-      local dist = sqrt(sqr(64 - x) + sqr(64 - y))
-      --field[y][x] = dist
-      field[y][x] = 0
+  local to_init = {}
+  add(to_init, red)
+  add(to_init, blue)
+  add(to_init, green)
+  add(to_init, field)
+
+  for i,f in pairs(to_init) do
+    for y = 0,128 do
+      f[y] = {}
+      for x = 0,128 do
+        --local dist = sqrt(sqr(64 - x) + sqr(64 - y))
+        --field[y][x] = dist
+        f[y][x] = 0
+      end
     end
   end
 
   poke(0x5F2D, 1)
 end
 
+col = 0
+
+function get_field()
+  if col == 0 then
+    return red
+  elseif col == 1 then
+    return green
+  elseif col == 2 then
+    return blue
+  end
+end
+
+function get_other_fields()
+  if col == 0 then
+    return { green, blue}
+  elseif col == 1 then
+    return { red, blue}
+  elseif col == 2 then
+    return { red, green}
+  end
+end
+
 function _update60()
+  if btnp(0) then
+    col = (col - 1) % 3
+  end
+  if btnp(1) then
+    col = (col + 1) % 3
+  end
+
   t += 1
   local left_pressed = band(1, stat(34)) != 0
   local right_pressed = band(2, stat(34)) != 0
@@ -32,12 +74,12 @@ function _update60()
     local c_y = stat(33)
 
     local maxrad = 12
-    local k = 30
+    local k = 3
     local mult = 0
     if left_pressed then
       mult = k
     elseif right_pressed then
-      mult = -k
+      mult = -2*k
     end
 
     local x_min = max(0, c_x - maxrad)
@@ -45,10 +87,21 @@ function _update60()
     local y_min = max(0, c_y - maxrad)
     local y_max = min(127, c_y + maxrad)
 
+    local to_write = get_field()
+    local other_fields = get_other_fields()
+
     for y = y_min,y_max do
       for x = x_min,x_max do
-        local dist = sqr(c_x - x) + sqr(c_y - y)
-        field[y][x] += (1 / (0.5 + dist)) * mult
+        local dist = sqrt(sqr(c_x - x) + sqr(c_y - y))
+        local delta = (1 / (1 + dist)) * mult
+        local new = to_write[y][x] + delta
+        to_write[y][x] = max(0, min(100, new))
+
+        for i,other_field in pairs(other_fields) do
+          local new = other_field[y][x] - delta
+          other_field[y][x] = max(0, min(100, new))
+        end
+
       end
     end
   end
@@ -71,17 +124,35 @@ function _draw()
           y += 1
         end
 
-        local f = field[y][x]
-        local col = 7
-        if abs(f - thresh) < 1 then
-          col = 2
-        end
+        local r = red[y][x]
+        local g = green[y][x]
 
-        if f > thresh then
-          if rnd() < 0.995 then
-            col = 0
+        local col = 7
+
+        local maxval = max(r, g)
+
+        if abs(maxval - thresh) < 1 then
+          col = 0
+        elseif maxval > thresh then
+          if rnd(r + g) < r then
+          --if r > g then
+            col = 14
+          else
+            col = 13
           end
         end
+
+        --local f = field[y][x]
+        --local col = 7
+        --if abs(f - thresh) < 1 then
+        --  col = 2
+        --end
+
+        --if f > thresh then
+        --  if rnd() < 0.995 then
+        --    col = 0
+        --  end
+        --end
 
         rectfill(x, y, x+1, y+1, col)
       end
@@ -108,6 +179,8 @@ function _draw()
   --end
 
   print(stat(34), 30, 20, 2)
+
+  print(col, 40, 20, 2)
 end
 
 __gfx__
