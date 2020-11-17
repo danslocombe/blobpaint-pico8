@@ -82,10 +82,10 @@ end
 
 function _update60()
   if btnp(0) then
-    col = (col - 1) % 3
+    col = (col - 1) % 5
   end
   if btnp(1) then
-    col = (col + 1) % 3
+    col = (col + 1) % 5
   end
 
   t += 1
@@ -95,13 +95,32 @@ function _update60()
   if left_pressed or right_pressed then
     t -= 1
 
-    local k = 4
+    local brush_mult = 4
+    local brush_const = 1
+    local brush_div = 10
+    local brush_type = 0
+    if col == 2 then
+      brush_mult = 1
+      brush_const = 0.51
+      brush_div = 100
+      brush_type = 1
+    elseif col == 3 then
+      brush_mult = 20
+      brush_const = 0.51
+      brush_type = 0
+      col = 0
+    elseif col == 4 then
+      brush_type = 2
+    end
+
+    local k = brush_mult
     local mult = 0
     if left_pressed then
       mult = k
     elseif right_pressed then
       mult = -2*k
     end
+
 
     local maxrad = 12
     local bounds = get_cursor_bounds(maxrad)
@@ -112,7 +131,6 @@ function _update60()
     for y = bounds.y_min,bounds.y_max do
       for x = bounds.x_min,bounds.x_max do
         local dist = sqrt(sqr(bounds.c_x - x) + sqr(bounds.c_y - y))
-        local delta = (1 / (1 + dist)) * mult
         --if delta > 1 then
         if true then
           local addr = get_index(x, y)
@@ -120,17 +138,48 @@ function _update60()
           local existing_r = (existing_data & 0x0000.FFFF) << 8
           local existing_g = (existing_data & 0xFFFF.0000) >> 8
 
-          local delta_r, delta_g
-          if col == 0 then
-            delta_r = delta
-            delta_g = -delta / 2
-          else
-            delta_r = -delta / 2
-            delta_g = delta
-          end
+          local new_r, new_g
 
-          local new_r = max(0, min(100, existing_r + delta_r))
-          local new_g = max(0, min(100, existing_g + delta_g))
+          if brush_type == 0 then
+            local delta = (mult / (brush_const + dist))
+            local delta_r, delta_g
+            local k = brush_div
+            if col == 0 then
+              delta_r = delta
+              delta_g = 0
+              --delta_g = -delta * existing_g / k
+            else
+              --delta_r = -delta * existing_r / k
+              delta_r = 0
+              delta_g = delta
+            end
+
+            new_r = max(0, min(100, existing_r + delta_r))
+            new_g = max(0, min(100, existing_g + delta_g))
+          elseif brush_type == 1 then
+            new_r = existing_r
+            new_g = existing_g
+            local delta = dist-2
+            if delta < 0 then
+              new_g = 100
+            else
+              new_g = 10
+            end
+            --elseif delta < 4 then
+              --new_g = ((delta)) * 100
+            --end
+          else
+            new_r = existing_r
+            new_g = existing_g
+            local delta = dist-2
+            if delta < 0 then
+              new_g = 100
+              new_r = 0
+            elseif delta < 2 then
+              --new_g = max(10, existing_g)
+              --new_r = 0
+            end
+          end
 
           --printh(tostr(new, true))
           local towrite_r = (new_r >> 8)
@@ -163,9 +212,11 @@ function _draw()
   local ymax = 63
   local xmin = 0
   local xmax = 63
+  local prob = 0.85
 
   if pressed then
-    local bounds = get_cursor_bounds(12)
+    prob = 0.5
+    local bounds = get_cursor_bounds(24)
     ymin = flr(bounds.y_min / 2)
     ymax = flr(bounds.y_max / 2)
     xmin = flr(bounds.x_min / 2)
@@ -175,7 +226,7 @@ function _draw()
   for yy = ymin,ymax do
     local thresh = 10 + 1 * sin((yy + t) / 60)
     for xx = xmin,xmax do
-      if rnd() > 0.85 then
+      if rnd() > prob then
         local x = xx * 2
         if rnd() < 0.5 then
           x = x + 1
@@ -196,9 +247,12 @@ function _draw()
         local col = 7
 
         local maxval = max(r, g)
+        local minval = min(r, g)
 
         if abs(maxval - thresh) < 1 then
           col = 0
+        --elseif abs(maxval-minval) < 1 then
+          --col = 0
         elseif maxval > thresh then
           if rnd(r + g) < r then
           --if r > g then
@@ -244,8 +298,8 @@ function _draw()
     --print("r", 40, 10, 2)
   --end
 
-  print(stat(34), 30, 20, 2)
-
+  --print(stat(34), 30, 20, 2)
+  print("brush: ", 10, 20)
   print(col, 40, 20, 2)
 end
 
