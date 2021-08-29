@@ -95,7 +95,7 @@ function _update60()
   if left_pressed or right_pressed then
     t -= 1
 
-    local brush_mult = 4
+    local brush_mult = 2
     local brush_const = 1
     local brush_div = 10
     local brush_type = 0
